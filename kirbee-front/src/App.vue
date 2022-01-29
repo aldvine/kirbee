@@ -2,48 +2,111 @@
   <div class="App" id="app">
     <div class="game">
       <div class="demo-scene">
+        <p v-if="character">{{ character }}</p>
         <p>{{ status }}</p>
-        <button @click="ping">Ping</button>
+        <button v-if="!state.joined" @click="join">
+          Join
+        </button>
+        <button
+          v-if="
+            !state.ready && state.joined && !(state.waiting || state.fighting)
+          "
+          @click="ready"
+        >
+          ready
+        </button>
+        <button v-if="state.waiting || state.fighting" @click="fight">
+          fight
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import io from 'socket.io-client';
+import io from "socket.io-client";
 
 const socket = io(`${location.protocol}//${location.hostname}:3006`);
 
 export default {
-  name: 'App',
+  name: "App",
 
-  data () {
+  data() {
     return {
-      status: 'connecting...'
-    }
+      status: "connecting...",
+      character: null,
+      state: {
+        joined: false,
+        ready: false,
+        waiting: false,
+        fighting: false,
+      },
+    };
   },
 
-  mounted () {
-      socket.on('connect', () => {
-        this.status = 'connected';
-      });
-      socket.on('disconnect', () => {
-        this.status = 'disconnected';
-      });
-      socket.on('reconnect', () => {
-        this.status = 'connected';
-      });
-      socket.on('pong', () => {
-        console.log('pong received !');
-      });
+  mounted() {
+    socket.on("connect", () => {
+      this.status = "connected";
+    });
+    socket.on("joined", (character) => {
+      this.status = "Waiting for player";
+      this.character = character;
+      this.state.joined = true;
+    });
+    socket.on("waiting", () => {
+      this.status = "wait";
+      this.state.waiting = true;
+    });
+    socket.on("fighting", () => {
+      console.log("fighting");
+      this.status = "fight";
+      this.state.waiting = false;
+      this.state.fighting = true;
+    });
+    socket.on("result", (result) => {
+      this.state.ready = false;
+      this.state.waiting = false;
+      this.state.fighting = false;
+      if (result.winner === socket.id) {
+        this.status = "Win !";
+      } else {
+        this.status = "KO !";
+      }
+    });
+    socket.on("disconnect", () => {
+      this.status = "disconnected";
+      this.resetState();
+    });
+    socket.on("reconnect", () => {
+      this.status = "connected";
+    });
+
+    socket.on("error", (error) => {
+      console.log(error.message);
+    });
   },
 
   methods: {
-    ping () {
-      socket.emit('ping');
-    }
-  }
-}
+    resetState() {
+      this.state = {
+        joined: false,
+        ready: false,
+        waiting: false,
+        fighting: false,
+      };
+    },
+    join() {
+      socket.emit("join");
+    },
+    fight() {
+      socket.emit("fight");
+    },
+    ready() {
+      socket.emit("ready");
+      this.state.ready = true;
+    },
+  },
+};
 </script>
 
 <style scoped>

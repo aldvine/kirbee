@@ -1,21 +1,23 @@
+const players = {};
+module.exports.players = players;
+const CHARACTER_KIRBY = "KIRBY";
+const CHARACTER_SAMURAI = "SAMURAI";
+
+module.exports.CHARACTER_KIRBY = CHARACTER_KIRBY;
+module.exports.CHARACTER_SAMURAI = CHARACTER_SAMURAI;
+
 module.exports.Player = class Player {
-  constructor(id) {
-    this.id = id;
+  constructor(socket) {
+    this.id = socket.id;
     this.victory = 0;
     this.defeat = 0;
     this.ready = false;
-    this.room = null;
-  }
-
-  setRoom(room) {
-    this.room = room;
+    this.socket = socket;
+    this.character = null;
   }
 
   isReady() {
     return this.ready;
-  }
-  getRoom() {
-    return this.room;
   }
   getScore() {
     return {
@@ -23,5 +25,11 @@ module.exports.Player = class Player {
       victory: this.victory,
       defeat: this.defeat,
     };
+  }
+  setCharacter(character) {
+    this.character = character;
+  }
+  setReady(ready) {
+    this.ready = ready;
   }
 };

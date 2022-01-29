@@ -1,10 +1,11 @@
 const { Player } = require("./models/Player");
 const {
-  Room,
+  Game,
+  game,
   STATUS_WAITING,
   STATUS_FIGHTING,
   STATUS_ZERO,
-} = require("./models/Room");
+} = require("./models/Game");
 const io = require("socket.io")(3006, {
   cors: {
     origin: "*",
@@ -12,43 +13,70 @@ const io = require("socket.io")(3006, {
   },
 });
 
+const clients = {};
+
 io.on("connection", function (socket) {
   console.log("client connect - ", socket.id);
-  const player = new Player(socket.id);
-
-  // rejoins le jeu
+  clients[socket.id] = new Player(socket);
   socket.on("join", () => {
-    const room = Room.addPlayerInRoom(player);
-    player.setRoom(room);
-    socket.join(room.id);
-    console.log("client reconnect - ", socket.id);
+    const player = clients[socket.id];
+    if (game.getGamePlayer(player)) {
+      socket.emit("error", { message: "already in game" });
+    } else {
+      const playerGame = game.addPlayer(player);
+      if (!playerGame) {
+        socket.emit("full");
+        return;
+      } else {
+        socket.join(game.room);
+        socket.emit("joined", player.character);
+      }
+    }
   });
 
   // pret
   socket.on("ready", () => {
-    player.ready = true;
-    if (player.room.ready()) {
-      const timer = Room.getRandomTimer();
-      player.room.setStatus(STATUS_WAITING);
-      io.to(player.room.id).emit("waiting");
-      setTimeout(() => {
-        player.room.setStatus(STATUS_FIGHTING);
-        socket.to(player.room.id).emit("fighting");
-      }, timer * 1000);
+    try {
+      const player = getPlayerInGame(socket);
+
+      if (player.isReady()) {
+        socket.emit("error", { message: "already Ready" });
+        return;
+      }
+      player.setReady(true);
+
+      if (game.readyForStart() && !(game.isFighting() || game.isWaiting())) {
+        const timer = game.getRandomTimer();
+        game.setStatus(STATUS_WAITING);
+        io.to(game.room).emit("waiting");
+        game.timeout = setTimeout(() => {
+          game.setStatus(STATUS_FIGHTING);
+          io.to(game.room).emit("fighting");
+        }, timer * 1000);
+      }
+    } catch (error) {
+      console.log(socket.id, error.message);
     }
-    console.log("client reconnect - ", socket.id);
   });
 
   // action de combat
   socket.on("fight", () => {
-    player.room.setStatus(STATUS_ZERO);
-    if (player.room.isFighting()) {
-      io.to(player.room.id);
-      player.room.setWinner(player);
-      socket.emit("result", player.room.getLastResult());
-    } else if (player.room.isWaiting()) {
-      player.room.setWinner(player);
-      io.to().emit("result", player.room.getLastResult());
+    try {
+      const player = getPlayerInGame(socket);
+      if (game.isFighting()) {
+        game.setStatus(STATUS_ZERO);
+        game.setWinner(player);
+        io.to(game.room).emit("result", game.getLastResultFormatted());
+      } else if (game.isWaiting()) {
+        game.setStatus(STATUS_ZERO);
+        clearTimeout(game.timeout);
+        game.setLooser(player);
+        io.to(game.room).emit("result", game.getLastResultFormatted());
+      } else {
+        socket.emit("error", { message: "action not possible" });
+      }
+    } catch (error) {
+      console.log(socket.id, error.message);
     }
   });
 
@@ -57,12 +85,39 @@ io.on("connection", function (socket) {
   });
 
   socket.on("disconnect", () => {
-    socket.leave(player.room.id);
     console.log("client disconnect - ", socket.id);
-  });
+    try {
+      const player = getPlayerInGame(socket);
+      if (game.isWaiting() || game.isFighting()) {
+        game.setStatus(STATUS_ZERO);
+        clearTimeout(game.timeout);
+        game.setLooser(player);
+        io.to(game.room).emit("result", game.getLastResultFormatted());
+      }
+      game.removePlayer(player);
 
-  socket.on("ping", () => {
-    console.log("ping received");
-    socket.emit("pong");
+      delete clients[socket.id];
+    } catch (error) {
+      console.log(socket.id, error.message);
+    }
   });
 });
+
+/**
+ * Retourne le contexte du joueur
+ */
+const getPlayerInGame = (socket) => {
+  const player = clients[socket.id];
+  if (!player) {
+    const message = "player does not exist";
+    socket.emit("error", { message });
+    throw new Error(message);
+  }
+  const inGame = game.getGamePlayer(player);
+  if (!inGame) {
+    const message = "you are not in game";
+    socket.emit("error", { message });
+    throw new Error(message);
+  }
+  return player;
+};
