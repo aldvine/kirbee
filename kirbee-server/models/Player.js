@@ -1,10 +1,10 @@
 const players = {};
 module.exports.players = players;
 const CHARACTER_KIRBY = "KIRBY";
-const CHARACTER_SAMURAI = "SAMURAI";
+const CHARACTER_KNIGHT = "KNIGHT";
 
 module.exports.CHARACTER_KIRBY = CHARACTER_KIRBY;
-module.exports.CHARACTER_SAMURAI = CHARACTER_SAMURAI;
+module.exports.CHARACTER_KNIGHT = CHARACTER_KNIGHT;
 
 module.exports.Player = class Player {
   constructor(socket) {
@@ -31,5 +31,13 @@ module.exports.Player = class Player {
   }
   setReady(ready) {
     this.ready = ready;
+  }
+
+  addVictory() {
+    this.victory++;
+  }
+
+  addDefeat() {
+    this.defeat++;
   }
 };

@@ -18,11 +18,13 @@ const clients = {};
 io.on("connection", function (socket) {
   console.log("client connect - ", socket.id);
   clients[socket.id] = new Player(socket);
+
   socket.on("join", () => {
     const player = clients[socket.id];
-    if (game.getGamePlayer(player)) {
+    if (game.playerIsInGame(player)) {
       socket.emit("error", { message: "already in game" });
     } else {
+      // add user in game if game not full
       const playerGame = game.addPlayer(player);
       if (!playerGame) {
         socket.emit("full");
@@ -34,7 +36,8 @@ io.on("connection", function (socket) {
     }
   });
 
-  // pret
+  // user send is ready
+  // start a game if users are ready
   socket.on("ready", () => {
     try {
       const player = getPlayerInGame(socket);
@@ -59,19 +62,15 @@ io.on("connection", function (socket) {
     }
   });
 
-  // action de combat
+  // a user send fight action
   socket.on("fight", () => {
     try {
       const player = getPlayerInGame(socket);
       if (game.isFighting()) {
-        game.setStatus(STATUS_ZERO);
-        game.setWinner(player);
-        io.to(game.room).emit("result", game.getLastResultFormatted());
+        fightAction(game, player, true);
       } else if (game.isWaiting()) {
-        game.setStatus(STATUS_ZERO);
         clearTimeout(game.timeout);
-        game.setLooser(player);
-        io.to(game.room).emit("result", game.getLastResultFormatted());
+        fightAction(game, player, false);
       } else {
         socket.emit("error", { message: "action not possible" });
       }
@@ -89,19 +88,22 @@ io.on("connection", function (socket) {
     try {
       const player = getPlayerInGame(socket);
       if (game.isWaiting() || game.isFighting()) {
-        game.setStatus(STATUS_ZERO);
         clearTimeout(game.timeout);
-        game.setLooser(player);
-        io.to(game.room).emit("result", game.getLastResultFormatted());
+        fightAction(game, player, false);
       }
       game.removePlayer(player);
-
       delete clients[socket.id];
     } catch (error) {
       console.log(socket.id, error.message);
     }
   });
 });
+
+const fightAction = (game, player, win) => {
+  game.setStatus(STATUS_ZERO);
+  game.setLastResult(player, win);
+  io.to(game.room).emit("result", game.getLastResultFormatted());
+};
 
 /**
  * Retourne le contexte du joueur
@@ -113,7 +115,7 @@ const getPlayerInGame = (socket) => {
     socket.emit("error", { message });
     throw new Error(message);
   }
-  const inGame = game.getGamePlayer(player);
+  const inGame = game.playerIsInGame(player);
   if (!inGame) {
     const message = "you are not in game";
     socket.emit("error", { message });

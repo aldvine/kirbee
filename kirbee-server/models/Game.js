@@ -1,4 +1,4 @@
-const { Player, CHARACTER_KIRBY, CHARACTER_SAMURAI } = require("./Player");
+const { Player, CHARACTER_KIRBY, CHARACTER_KNIGHT } = require("./Player");
 
 const STATUS_WAITING = "waiting";
 const STATUS_FIGHTING = "fighting";
@@ -27,7 +27,7 @@ class Game {
 
   getCharacterAvailable() {
     return this.players.find((p) => p.character === CHARACTER_KIRBY)
-      ? CHARACTER_SAMURAI
+      ? CHARACTER_KNIGHT
       : CHARACTER_KIRBY;
   }
 
@@ -54,24 +54,40 @@ class Game {
     this.status = status;
   }
 
-  setWinner(winner) {
-    this.lastResult.winner = winner;
-    this.lastResult.looser =
-      this.players.find((p) => p.id != winner.id) ?? null;
+  /**
+   * set last result of winner,
+   * increment game stats for players
+   * set the ready state of players
+   * @param {Player} player
+   * @param {boolean} win
+   */
+  setLastResult(player, win) {
+    if (win) {
+      player.addVictory();
+      this.lastResult.winner = player;
+      const looser = this.players.find((p) => p.id != player.id) ?? null;
+      if (looser) {
+        looser.addDefeat();
+        this.lastResult.looser = looser;
+      }
+    } else {
+      player.addDefeat();
+      this.lastResult.looser = player;
+      const winner = this.players.find((p) => p.id != player.id) ?? null;
+      if (winner) {
+        winner.addVictory();
+        this.lastResult.winner = winner;
+      }
+    }
+
     for (const player of this.players) {
-      player.ready = false;
+      player.setReady(false);
     }
   }
 
-  setLooser(looser) {
-    this.lastResult.looser = looser;
-    this.lastResult.winner =
-      this.players.find((p) => p.id != looser.id) ?? null;
-    for (const player of this.players) {
-      player.ready = false;
-    }
-  }
-
+  /**
+   * Get formatted result for clients
+   */
   getLastResultFormatted() {
     return {
       winner: this.lastResult.winner.id,
@@ -79,6 +95,9 @@ class Game {
     };
   }
 
+  /**
+   * Remove player in game
+   */
   removePlayer(player) {
     this.players = this.players.filter((p) => {
       return p.id !== player.id;
@@ -92,7 +111,12 @@ class Game {
     return Math.floor(Math.random() * 6) + 2;
   }
 
-  getGamePlayer(player) {
+  /**
+   * Return the player if is in the game
+   * @param {Player} player
+   * @returns
+   */
+  playerIsInGame(player) {
     return game.players.find((p) => p.id === player.id);
   }
 }
