@@ -81,7 +81,7 @@ export default {
         this.result = "winner";
         this.status = `You win !`;
       } else {
-        this.result = "lose";
+        this.result = "loser";
         this.status = `You lose !`;
       }
     });
