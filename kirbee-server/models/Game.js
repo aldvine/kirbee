@@ -10,7 +10,7 @@ class Game {
   constructor() {
     this.players = [];
     this.status = false;
-    this.lastResult = { winner: null, looser: null };
+    this.lastResult = { winner: null, loser: null };
     this.room = "game";
   }
 
@@ -65,14 +65,14 @@ class Game {
     if (win) {
       player.addVictory();
       this.lastResult.winner = player;
-      const looser = this.players.find((p) => p.id != player.id) ?? null;
-      if (looser) {
-        looser.addDefeat();
-        this.lastResult.looser = looser;
+      const loser = this.players.find((p) => p.id != player.id) ?? null;
+      if (loser) {
+        loser.addDefeat();
+        this.lastResult.loser = loser;
       }
     } else {
       player.addDefeat();
-      this.lastResult.looser = player;
+      this.lastResult.loser = player;
       const winner = this.players.find((p) => p.id != player.id) ?? null;
       if (winner) {
         winner.addVictory();
@@ -91,7 +91,7 @@ class Game {
   getLastResultFormatted() {
     return {
       winner: this.lastResult.winner.id,
-      looser: this.lastResult.looser.id,
+      loser: this.lastResult.loser.id,
     };
   }
 

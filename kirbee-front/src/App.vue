@@ -2,22 +2,26 @@
   <div class="App" id="app">
     <div class="game">
       <div class="demo-scene">
-        <p v-if="character">{{ character }}</p>
-        <p>{{ status }}</p>
-        <button v-if="!state.joined" @click="join">
-          Join
-        </button>
-        <button
-          v-if="
-            !state.ready && state.joined && !(state.waiting || state.fighting)
-          "
-          @click="ready"
-        >
-          ready
-        </button>
-        <button v-if="state.waiting || state.fighting" @click="fight">
-          fight
-        </button>
+        <div class="info-scene">
+          <p v-if="character">Joined as {{ character }}</p>
+          <p>{{ status }}</p>
+          <button v-if="!state.joined" @click="join">
+            Join
+          </button>
+          <button
+            v-if="
+              !state.ready && state.joined && !(state.waiting || state.fighting)
+            "
+            @click="ready"
+          >
+            ready
+          </button>
+        </div>
+        <scene
+          :readyFoFight="state.fighting"
+          :playerCharacter="character"
+          :result="result"
+        ></scene>
       </div>
     </div>
   </div>
@@ -25,12 +29,13 @@
 
 <script>
 import io from "socket.io-client";
+import Scene from "./components/Scene.vue";
 
 const socket = io(`${location.protocol}//${location.hostname}:3006`);
 
 export default {
   name: "App",
-
+  components: { Scene },
   data() {
     return {
       status: "connecting...",
@@ -41,6 +46,7 @@ export default {
         waiting: false,
         fighting: false,
       },
+      result: null,
     };
   },
 
@@ -53,8 +59,11 @@ export default {
       this.character = character;
       this.state.joined = true;
     });
+    socket.on("full", () => {
+      this.status = "FULL";
+    });
     socket.on("waiting", () => {
-      this.status = "wait";
+      this.status = "wait... ";
       this.state.waiting = true;
     });
     socket.on("fighting", () => {
@@ -67,14 +76,18 @@ export default {
       this.state.ready = false;
       this.state.waiting = false;
       this.state.fighting = false;
+
       if (result.winner === socket.id) {
-        this.status = "Win !";
+        this.result = "winner";
+        this.status = `You win !`;
       } else {
-        this.status = "KO !";
+        this.result = "lose";
+        this.status = `You lose !`;
       }
     });
     socket.on("disconnect", () => {
       this.status = "disconnected";
+      this.status = `You lose !`;
       this.resetState();
     });
     socket.on("reconnect", () => {
@@ -94,17 +107,35 @@ export default {
         waiting: false,
         fighting: false,
       };
+      this.character = null;
+      this.result = null;
     },
     join() {
       socket.emit("join");
+      this.result = null;
     },
     fight() {
-      socket.emit("fight");
+      if (this.state.waiting || this.state.fighting) {
+        socket.emit("fight");
+      }
     },
     ready() {
+      this.result = null;
       socket.emit("ready");
       this.state.ready = true;
+      this.status = "Waiting for player";
     },
+  },
+  created() {
+    window.addEventListener("keydown", () => {
+      this.fight();
+    });
+    window.addEventListener("click", () => {
+      this.fight();
+    });
+    window.addEventListener("touchstart", () => {
+      this.fight();
+    });
   },
 };
 </script>
@@ -133,9 +164,13 @@ export default {
 
 .demo-scene {
   height: 100%;
-  padding: 0.7rem;
   text-align: center;
   color: white;
+  display: flex;
+  flex-flow: column;
+}
+.info-scene {
+  height: 45%;
 }
 
 .demo-scene p {
